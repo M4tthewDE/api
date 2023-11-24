@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -122,7 +123,12 @@ func startTooltipClearer(ctx context.Context, pool db.Pool) {
 func (c *PostgreSQLCache) load(ctx context.Context, key string, r *http.Request) (*Response, error) {
 	log := logger.FromContext(ctx)
 
+	start := time.Now()
 	payload, statusCode, contentType, overrideDuration, err := c.loader.Load(ctx, key, r)
+	elapsed := time.Since(start)
+	if elapsed.Milliseconds() > 200 {
+		log.Warnw(fmt.Sprintf("[c.loader.Load] %s", elapsed), "key", key)
+	}
 	// If the parent cannot be inserted into the cache, rollback the dependents
 	defer c.rollbackDependents(ctx, key)
 
@@ -181,7 +187,12 @@ func (c *PostgreSQLCache) Get(ctx context.Context, key string, r *http.Request) 
 	log := logger.FromContext(ctx)
 	cacheKey := c.keyProvider.CacheKey(ctx, key)
 
+	start := time.Now()
 	cacheResponse, err := c.loadFromDatabase(ctx, cacheKey)
+	elapsed := time.Since(start)
+	if elapsed.Milliseconds() > 10 {
+		log.Warnw(fmt.Sprintf("[c.loadFromDatabase] %s", elapsed), "key", key)
+	}
 	if err != nil {
 		log.Warnw("Unhandled sql error", "error", err)
 		tooltipInternalError := Response{

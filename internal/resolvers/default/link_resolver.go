@@ -3,10 +3,12 @@ package defaultresolver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Chatterino/api/internal/db"
 	"github.com/Chatterino/api/internal/logger"
@@ -54,6 +56,7 @@ func (r *LinkResolver) shouldIgnore(u *url.URL) bool {
 }
 
 func (r *LinkResolver) HandleRequest(w http.ResponseWriter, req *http.Request) {
+	start := time.Now()
 	ctx := req.Context()
 	log := logger.FromContext(ctx)
 
@@ -129,6 +132,11 @@ func (r *LinkResolver) HandleRequest(w http.ResponseWriter, req *http.Request) {
 					"error", err,
 				)
 			}
+
+			elapsed := time.Since(start)
+			if elapsed.Milliseconds() > 200 {
+				log.Warnw(fmt.Sprintf("[%s] %s", m.Name(), elapsed), "url", requestUrl)
+			}
 			return
 		}
 	}
@@ -148,6 +156,10 @@ func (r *LinkResolver) HandleRequest(w http.ResponseWriter, req *http.Request) {
 				"error", err,
 			)
 		}
+		elapsed := time.Since(start)
+		if elapsed.Milliseconds() > 200 {
+			log.Errorw(fmt.Sprintf("%s", elapsed))
+		}
 	} else {
 		w.Header().Add("Content-Type", response.ContentType)
 		w.WriteHeader(response.StatusCode)
@@ -157,7 +169,12 @@ func (r *LinkResolver) HandleRequest(w http.ResponseWriter, req *http.Request) {
 				"error", err,
 			)
 		}
+		elapsed := time.Since(start)
+		if elapsed.Milliseconds() > 200 {
+			log.Warnw(fmt.Sprintf("[DEFAULT] %s", elapsed), "url", urlString)
+		}
 	}
+
 }
 
 func (r *LinkResolver) HandleThumbnailRequest(w http.ResponseWriter, req *http.Request) {
